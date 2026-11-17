@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tollbooth</title>
+<style>
+:root{--bg:#14161a;--panel:#1d2025;--line:#2c3037;--txt:#d9dde3;--mut:#8b93a1;--acc:#ff9f1a;--good:#3ecf8e;--bad:#ff5d5d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px system-ui,sans-serif;display:flex;flex-direction:column;height:100vh}
+header{display:flex;align-items:center;gap:18px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0;color:var(--acc)}
+nav{display:flex;flex:1}
+nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--mut);padding:12px 14px;cursor:pointer;font-size:14px}
+nav button.on{color:var(--txt);border-color:var(--acc)}
+#conn{color:var(--good);font-size:12px}
+main{flex:1;min-height:0}
+.tab{display:none;height:100%;flex-direction:column;gap:8px;padding:10px}
+.tab.active{display:flex}
+button.b,select,input[type=text]{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:5px;padding:6px 10px;font-size:13px}
+button.b{cursor:pointer}button.b:hover{border-color:var(--acc)}
+button.go{background:var(--acc);color:#111;border-color:var(--acc);font-weight:600}
+button.stop{border-color:var(--bad);color:var(--bad)}
+textarea{width:100%;background:#101216;color:var(--txt);border:1px solid var(--line);border-radius:5px;padding:8px;font:12.5px ui-monospace,Menlo,Consolas,monospace;resize:none;tab-size:4}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bar .sp{flex:1}
+.row{display:flex;gap:10px;flex:1;min-height:0}
+.col{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+.col textarea{flex:1}
+.lbl{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.tbl{flex:1;min-height:80px;overflow:auto;border:1px solid var(--line);border-radius:5px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{position:sticky;top:0;background:var(--panel);text-align:left;color:var(--mut);padding:5px 8px;font-weight:500}
+td{padding:4px 8px;border-top:1px solid var(--line);max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tbody tr{cursor:pointer}tbody tr:hover{background:#23272e}tr.sel{background:#33291a!important}
+tr.odd td{color:var(--acc);font-weight:600}
+#held{border:1px solid var(--acc);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;height:230px}
+#held textarea{flex:1}
+.diffl{white-space:pre-wrap;font:12.5px ui-monospace,monospace;padding:0 8px}
+.diffl.add{background:#12301f;color:var(--good)}.diffl.del{background:#3a1717;color:var(--bad)}
+#diffout{flex:1;overflow:auto;border:1px solid var(--line);border-radius:5px;background:#101216}
+.leaf{padding:2px 0 2px 22px;font:12.5px ui-monospace,monospace;color:var(--mut)}
+details{margin:4px 0}summary{cursor:pointer}
+.rule{display:flex;gap:8px;align-items:center;padding:4px 0;font:12.5px ui-monospace,monospace}
+.hint{color:var(--mut);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚧 Tollbooth</h1>
+  <nav>
+    <button data-tab="proxy" class="on">Proxy</button>
+    <button data-tab="target">Target</button>
+    <button data-tab="repeater">Repeater</button>
+    <button data-tab="intruder">Intruder</button>
+    <button data-tab="decoder">Decoder</button>
+    <button data-tab="comparer">Comparer</button>
+    <button data-tab="options">Options</button>
+  </nav>
+  <span id="conn">● connected</span>
+</header>
+
+<main>
+<!-- PROXY -->
+<section class="tab active" id="proxy">
+  <div class="bar">
+    <label><input type="checkbox" id="icReq"> Intercept requests</label>
+    <label><input type="checkbox" id="icResp"> Intercept responses</label>
+    <input type="text" id="filter" placeholder="Filter history…" size="26">
+    <span class="sp"></span>
+    <a class="b" href="/api/export" style="text-decoration:none"><button class="b">Export JSON</button></a>
+    <button class="b" id="clear">Clear history</button>
+  </div>
+  <div id="held" hidden>
+    <div class="bar"><b id="heldTitle"></b><span class="sp"></span>
+      <button class="b go" id="fwd">Forward</button>
+      <button class="b stop" id="drp">Drop</button></div>
+    <textarea id="heldText" spellcheck="false"></textarea>
+  </div>
+  <div class="tbl"><table id="hist"><thead><tr>
+    <th>#</th><th>Method</th><th>Host</th><th>Path</th><th>Status</th><th>Length</th><th>ms</th><th>Note</th>
+  </tr></thead><tbody></tbody></table></div>
+  <div class="bar">
+    <button class="b" id="toRep">→ Repeater</button>
+    <button class="b" id="toInt">→ Intruder</button>
+    <button class="b" id="toCmpA">Response → Comparer A</button>
+    <button class="b" id="toCmpB">Response → Comparer B</button>
+  </div>
+  <div class="row" style="flex:1">
+    <div class="col"><span class="lbl">Request</span><textarea id="reqView" readonly></textarea></div>
+    <div class="col"><span class="lbl">Response</span><textarea id="respView" readonly></textarea></div>
+  </div>
+</section>
+
+<!-- TARGET -->
+<section class="tab" id="target">
+  <span class="hint">Site map built from proxy history (paths without query strings).</span>
+  <div id="tree" class="tbl" style="padding:10px"></div>
+</section>
+
+<!-- REPEATER -->
+<section class="tab" id="repeater">
+  <div class="bar"><button class="b go" id="repSend">Send</button><span id="repMeta" class="hint"></span>
+    <span class="hint">First line: METHOD http(s)://host/path HTTP/1.1. Content-Length is fixed for you.</span></div>
+  <div class="row">
+    <div class="col"><span class="lbl">Request</span><textarea id="repText" spellcheck="false"></textarea></div>
+    <div class="col"><span class="lbl">Response</span><textarea id="repResp" readonly></textarea></div>
+  </div>
+</section>
+
+<!-- INTRUDER -->
+<section class="tab" id="intruder">
+  <div class="bar">
+    <button class="b" id="addMark">Add § around selection</button>
+    <select id="intMode"><option value="sniper">Sniper (one position at a time)</option>
+      <option value="ram">Battering ram (same payload everywhere)</option></select>
+    <button class="b go" id="intGo">Start attack</button><span id="intMeta" class="hint"></span>
+  </div>
+  <div class="row" style="flex:0 0 38%">
+    <div class="col"><span class="lbl">Request with §positions§</span><textarea id="intText" spellcheck="false"></textarea></div>
+    <div class="col"><span class="lbl">Payloads (one per line)</span><textarea id="intPay" spellcheck="false"></textarea></div>
+  </div>
+  <div class="tbl"><table id="intRes"><thead><tr>
+    <th>#</th><th>Position</th><th>Payload</th><th>Status</th><th>Length</th><th>ms</th><th>Error</th>
+  </tr></thead><tbody></tbody></table></div>
+  <span class="hint">Orange rows differ in length from the most common response, which is usually where the interesting results are.</span>
+</section>
+
+<!-- DECODER -->
+<section class="tab" id="decoder">
+  <span class="lbl">Input</span><textarea id="decIn" style="height:30%" spellcheck="false"></textarea>
+  <div class="bar" id="decBtns"></div>
+  <span class="lbl">Output</span><textarea id="decOut" style="flex:1" readonly></textarea>
+</section>
+
+<!-- COMPARER -->
+<section class="tab" id="comparer">
+  <div class="row" style="flex:0 0 35%">
+    <div class="col"><span class="lbl">A</span><textarea id="cmpA" spellcheck="false"></textarea></div>
+    <div class="col"><span class="lbl">B</span><textarea id="cmpB" spellcheck="false"></textarea></div>
+  </div>
+  <div class="bar"><button class="b go" id="cmpGo">Compare</button></div>
+  <div id="diffout"></div>
+</section>
+
+<!-- OPTIONS -->
+<section class="tab" id="options">
+  <div class="row">
+    <div class="col">
+      <span class="lbl">Scope (one host per line, * = everything)</span>
+      <textarea id="scopeText" spellcheck="false"></textarea>
+      <div class="bar"><button class="b go" id="scopeSave">Save scope</button><span id="scopeMeta" class="hint"></span></div>
+      <span class="hint">Requests to hosts outside the scope are blocked, including Repeater and Intruder.</span>
+    </div>
+    <div class="col">
+      <span class="lbl">Match &amp; replace rules</span>
+      <div class="bar">
+        <select id="ruleTarget"><option value="request">request</option><option value="response">response</option></select>
+        <input type="text" id="ruleMatch" placeholder="match">
+        <input type="text" id="ruleRepl" placeholder="replace with">
+        <label><input type="checkbox" id="ruleRegex"> regex</label>
+        <button class="b go" id="ruleAdd">Add</button>
+      </div>
+      <div id="rules" class="tbl" style="padding:8px"></div>
+      <span class="hint">Applied to the whole raw message (headers + body) before interception.</span>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+async function api(p, b) {
+  const o = b === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Tollbooth': '1'}, body: JSON.stringify(b)};
+  return (await fetch(p, o)).json();
+}
+function show(t) {
+  $$('nav button').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
+  $$('.tab').forEach(x => x.classList.toggle('active', x.id === t));
+}
+$$('nav button').forEach(b => b.onclick = () => show(b.dataset.tab));
+// NOTE: captured traffic is hostile input. Everything below uses textContent / .value, never innerHTML with data.
+function cell(tr, v) { const td = document.createElement('td'); td.textContent = v ?? ''; td.title = v ?? ''; tr.appendChild(td); }
+
+/* ---------- Proxy ---------- */
+let flows = [], sel = null, sig = '', pendSig = '', heldId = null, first = true;
+async function poll() {
+  try {
+    const s = await api('/api/state');
+    if (first) { $('#icReq').checked = s.intercept.request; $('#icResp').checked = s.intercept.response; first = false; }
+    const g = JSON.stringify(s.flows.map(f => [f.id, f.status, f.note, f.length]));
+    if (g !== sig) { sig = g; flows = s.flows; renderHistory(); renderTarget(); }
+    renderPending(s.pending);
+    $('#conn').textContent = '● connected'; $('#conn').style.color = 'var(--good)';
+  } catch (e) { $('#conn').textContent = '● offline'; $('#conn').style.color = 'var(--bad)'; }
+}
+setInterval(poll, 1000); poll();
+
+function renderHistory() {
+  const tb = $('#hist tbody'), q = $('#filter').value.toLowerCase();
+  tb.innerHTML = '';
+  for (const x of flows.slice().reverse()) {
+    if (q && !`${x.method} ${x.host}${x.path} ${x.status} ${x.note}`.toLowerCase().includes(q)) continue;
+    const tr = document.createElement('tr');
+    if (x.id === sel) tr.className = 'sel';
+    [x.id, x.method, x.host, x.path, x.status, x.length, x.ms, x.note].forEach(v => cell(tr, v));
+    tr.onclick = () => select(x.id);
+    tb.appendChild(tr);
+  }
+}
+$('#filter').oninput = renderHistory;
+async function select(id) {
+  sel = id;
+  const d = await api('/api/flow/' + id);
+  $('#reqView').value = d.req_text || ''; $('#respView').value = d.resp_text || '';
+  renderHistory();
+}
+function renderPending(p) {
+  const s = JSON.stringify(p.map(x => [x.id, x.stage]));
+  if (s === pendSig) return;
+  pendSig = s;
+  $('#held').hidden = !p.length;
+  if (!p.length) return;
+  heldId = p[0].id;
+  $('#heldTitle').textContent = `Held ${p[0].stage} #${p[0].id}  (${p.length} waiting)`;
+  $('#heldText').value = p[0].text;
+}
+$('#fwd').onclick = async () => { await api('/api/forward', {id: heldId, text: $('#heldText').value}); pendSig = ''; poll(); };
+$('#drp').onclick = async () => { await api('/api/drop', {id: heldId}); pendSig = ''; poll(); };
+const setIcpt = () => api('/api/intercept', {request: $('#icReq').checked, response: $('#icResp').checked});
+$('#icReq').onchange = $('#icResp').onchange = setIcpt;
+$('#clear').onclick = async () => { await api('/api/clear', {}); sel = null; $('#reqView').value = $('#respView').value = ''; poll(); };
+$('#toRep').onclick = () => { $('#repText').value = $('#reqView').value; show('repeater'); };
+$('#toInt').onclick = () => { $('#intText').value = $('#reqView').value; show('intruder'); };
+$('#toCmpA').onclick = () => { $('#cmpA').value = $('#respView').value; show('comparer'); };
+$('#toCmpB').onclick = () => { $('#cmpB').value = $('#respView').value; show('comparer'); };
+
+/* ---------- Target ---------- */
+function renderTarget() {
+  const by = {};
+  for (const f of flows) { const p = f.path.split('?')[0]; (by[f.host] ??= {})[p] = (by[f.host][p] || 0) + 1; }
+  const root = $('#tree'); root.innerHTML = '';
+  for (const h of Object.keys(by).sort()) {
+    const d = document.createElement('details'); d.open = true;
+    const s = document.createElement('summary'); s.textContent = h; d.appendChild(s);
+    for (const p of Object.keys(by[h]).sort()) {
+      const l = document.createElement('div'); l.className = 'leaf'; l.textContent = `${p}  (${by[h][p]})`; d.appendChild(l);
+    }
+    root.appendChild(d);
+  }
+}
+
+/* ---------- Repeater ---------- */
+$('#repSend').onclick = async () => {
+  $('#repMeta').textContent = 'sending…';
+  const r = await api('/api/send', {text: $('#repText').value});
+  if (r.error) { $('#repMeta').textContent = '⚠ ' + r.error; return; }
+  $('#repResp').value = r.resp_text;
+  $('#repMeta').textContent = `${r.status} · ${r.length} bytes · ${r.ms} ms`;
+};
+
+/* ---------- Intruder ---------- */
+$('#addMark').onclick = () => {
+  const t = $('#intText'), s = t.selectionStart, e = t.selectionEnd;
+  t.value = t.value.slice(0, s) + '§' + t.value.slice(s, e) + '§' + t.value.slice(e);
+};
+$('#intGo').onclick = async () => {
+  $('#intMeta').textContent = 'running…';
+  const r = await api('/api/intruder', {text: $('#intText').value, payloads: $('#intPay').value, mode: $('#intMode').value});
+  if (r.error) { $('#intMeta').textContent = '⚠ ' + r.error; return; }
+  const counts = {}; r.results.forEach(x => counts[x.length] = (counts[x.length] || 0) + 1);
+  const common = +Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  const tb = $('#intRes tbody'); tb.innerHTML = '';
+  for (const x of r.results) {
+    const tr = document.createElement('tr');
+    if (x.length !== common || x.error) tr.className = 'odd';
+    [x.n, x.position, x.payload, x.status, x.length, x.ms, x.error].forEach(v => cell(tr, v));
+    tb.appendChild(tr);
+  }
+  $('#intMeta').textContent = `${r.results.length} requests done`;
+};
+
+/* ---------- Decoder ---------- */
+const OPS = [['b64enc', 'Base64 enc'], ['b64dec', 'Base64 dec'], ['urlenc', 'URL enc'], ['urldec', 'URL dec'],
+  ['hexenc', 'Hex enc'], ['hexdec', 'Hex dec'], ['htmlenc', 'HTML enc'], ['htmldec', 'HTML dec'],
+  ['md5', 'MD5'], ['sha1', 'SHA-1'], ['sha256', 'SHA-256']];
+for (const [op, name] of OPS) {
+  const b = document.createElement('button'); b.className = 'b'; b.textContent = name;
+  b.onclick = async () => { const r = await api('/api/decode', {op, data: $('#decIn').value}); $('#decOut').value = r.result ?? r.error; };
+  $('#decBtns').appendChild(b);
+}
+const sw = document.createElement('button'); sw.className = 'b'; sw.textContent = '↑ Output to input';
+sw.onclick = () => { $('#decIn').value = $('#decOut').value; }; $('#decBtns').appendChild(sw);
+
+/* ---------- Comparer ---------- */
+$('#cmpGo').onclick = async () => {
+  const r = await api('/api/compare', {a: $('#cmpA').value, b: $('#cmpB').value});
+  const out = $('#diffout'); out.innerHTML = '';
+  for (const [tag, line] of r.diff) {
+    const d = document.createElement('div');
+    d.className = 'diffl ' + (tag === '+' ? 'add' : tag === '-' ? 'del' : '');
+    d.textContent = (tag === ' ' ? '  ' : tag + ' ') + line; out.appendChild(d);
+  }
+  if (!r.diff.some(x => x[0] !== ' ')) out.textContent = 'Identical.';
+};
+
+/* ---------- Options ---------- */
+async function loadOptions() {
+  $('#scopeText').value = (await api('/api/scope')).scope.join('\n');
+  rules = (await api('/api/rules')).rules; renderRules();
+}
+$('#scopeSave').onclick = async () => {
+  const r = await api('/api/scope', {scope: $('#scopeText').value.split('\n')});
+  $('#scopeMeta').textContent = 'saved: ' + r.scope.length + ' host(s)';
+};
+let rules = [];
+const saveRules = async () => { await api('/api/rules', {rules}); renderRules(); };
+function renderRules() {
+  const box = $('#rules'); box.innerHTML = '';
+  rules.forEach((r, i) => {
+    const d = document.createElement('div'); d.className = 'rule';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = r.enabled;
+    cb.onchange = () => { r.enabled = cb.checked; saveRules(); };
+    const t = document.createElement('span');
+    t.textContent = `[${r.target}] ${r.regex ? 're:' : ''}${r.match}  →  ${r.replace}`; t.style.flex = 1;
+    const x = document.createElement('button'); x.className = 'b'; x.textContent = '✕';
+    x.onclick = () => { rules.splice(i, 1); saveRules(); };
+    d.append(cb, t, x); box.appendChild(d);
+  });
+}
+$('#ruleAdd').onclick = () => {
+  if (!$('#ruleMatch').value) return;
+  rules.push({target: $('#ruleTarget').value, match: $('#ruleMatch').value, replace: $('#ruleRepl').value,
+              regex: $('#ruleRegex').checked, enabled: true});
+  $('#ruleMatch').value = $('#ruleRepl').value = ''; saveRules();
+};
+loadOptions();
+</script>
+</body>
+</html>
